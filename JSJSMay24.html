@@ -1,0 +1,453 @@
+<html>
+<head>
+	<meta charset="UTF-8">
+	<style>
+		*{
+			font-family: "Comic Sans MS", "Comic Sans", cursive;
+			border-radius: 7px;
+		}
+		#canvas{
+			aspect-ratio: 1 / 1;
+			max-width: 600px;
+			width: 100%;
+			background: #fff;
+		}
+		#canvas, button {
+			margin: 20px auto;
+			display: block;
+			text-align: center;
+		}
+		span {
+			margin: 5px auto;
+			display: block;
+			text-align: center;
+		}
+		h1, h2, p {
+			text-align: center;
+			display: block;
+		}
+		h2 {
+			margin-top: -30px;
+		}
+		button {
+			font-size: 1.5em;
+			font-weight: bold;
+			border: 3px solid #000;
+			cursor: pointer;
+			background: #fff;
+		}
+		button:active {
+			transform: scale(.9);
+		}
+		.row {
+			width: 100%;
+			max-width: 600px;
+			margin: 0 auto;
+			display: flex;
+			justify-content: center;
+			align-items: center;
+		}
+		.col {
+			width: 50%;
+			height: 165px;
+		}
+		img {
+			width: 80%;
+			max-height: 100%;
+			object-fit: cover;
+		}
+		body {
+			background: #ddd;
+		}
+		
+	</style>
+</head>
+<body>
+	<h1>Jane Street May '24 Puzzle Solver</h1>
+	<canvas id="canvas" width="600px" height="600px"></canvas>
+	<br/>
+	<h2>&#160</h2>
+	<div class="row">
+		<div class="col">
+			<button onClick="toggleSearch()">Start search🔎</button>
+			<span id="time"></span>
+			<br/>
+			<span id="iter"></span>
+		</div>
+		<div class="col">
+			<img></img>
+		</div>
+	<div>
+	<script src="https://cdn.jsdelivr.net/npm/js-confetti@latest/dist/js-confetti.browser.js"></script>
+	<script>
+		let jsConfetti = new JSConfetti()
+		let canvas = document.querySelector("canvas");
+		let ctx = canvas.getContext("2d");
+		let gridSize = 11;
+		
+		let solutionFound = false;
+		let Y = 0;
+		let X = 0;
+		let currentNum = 0;
+		
+		//initialize 11 x 11 array of undefined
+		let grid = [...Array(gridSize)].map(e => Array(gridSize).fill(undefined));
+		
+		//true if cell at pos [y][x] has vertical boundary to the left of it (edges of the grid do not count)
+		let verticalBoundaries = [
+			[0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0],
+			[0, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1],
+			[0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1],
+			[0, 1, 0, 1, 0, 1, 0, 1, 1, 0, 0],
+			[0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 1],
+			[0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 1],
+			[0, 1, 0, 0, 0, 1, 0, 1, 1, 0, 0],
+			[0, 0 ,1, 1, 1, 1, 0, 1, 0, 1, 1],
+			[0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0],
+			[0, 1, 0, 1, 0, 0, 1, 1, 0, 0, 1],
+			[0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1]
+		];
+		
+		//true if cell at pos [y][x] has a horizontal boundary above it (edges of the grid do not count)
+		let horizontalBoundaries = [
+			[0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+			[0, 1, 1, 1, 0, 0, 0, 1, 0, 0, 1],
+			[0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0],
+			[0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0],
+			[0, 0, 1, 0, 1, 1, 0, 0, 0, 1, 0],
+			[0, 1, 1, 1, 0, 0, 1, 0, 1, 0, 1],
+			[1, 0, 0, 0, 0, 1, 1, 0, 0, 0, 1],
+			[0, 1, 1, 0, 1, 0, 0, 0, 1, 0, 1],
+			[0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0],
+			[0, 1, 0, 1, 1, 1, 0, 0, 0, 0, 1],
+			[0, 1, 1, 0, 0, 1, 0, 1, 0, 0, 0]
+		];
+		
+		//returns sum of digits
+		function sumDigits(num){
+			return (num === 0) ? 0 : num % 10 + sumDigits(Math.floor(num / 10));
+		}
+		
+		//returns true if number is palindrome
+		function isPalindrome(num){
+			let numString = num.toString();
+			return numString.split("").reverse().join("") == numString;
+		}
+				
+		//sieve of Eratosthenes
+		function getPrimes(max){
+			let isPrime = Array(max).fill(true);
+			isPrime[0] = false;
+			isPrime[1] = false;
+			for(let i = 0; i <= Math.sqrt(max); i++){
+				if(isPrime[i]){
+					for(let j = i+1; j < max; j++){
+						if(j%i==0){
+							isPrime[j] = false;
+						}
+					}
+				}
+			}
+			//wonky one-liner array thingy
+			return Array.from(new Array(max), (x,i) => i+1).filter(n => {return isPrime[n]});
+		}
+		
+		//primes up to sqrt(99999999999)
+		let somePrimes = getPrimes(316228);
+		
+		//fibonacci numbers up to 99999999999
+		let someFibonacciNumbers = [1, 2, 3, 5, 8, 13, 21, 34, 55, 89, 144, 233, 377, 610, 987, 1597, 2584, 4181, 6765, 10946, 17711, 28657, 46368, 75025, 121393, 196418, 317811, 514229, 832040, 1346269, 2178309, 3524578, 5702887, 9227465, 14930352, 24157817, 39088169, 63245986, 102334155, 165580141, 267914296, 433494437, 701408733, 1134903170, 1836311903, 2971215073, 4807526976, 7778742049, 12586269025, 20365011074, 32951280099, 53316291173, 86267571272];
+		
+		//array of functions that return true if the row's clue applies to the input number
+		let clueChecks = [
+			//square
+			function(num){
+				return Math.sqrt(num)%1==0;
+			},
+			//1 more than a palindrome
+			function(num){
+				return isPalindrome(num - 1);
+			},
+			//prime raised to prime power
+			function(num){
+				for(let i = 0; somePrimes[i] <= Math.sqrt(num); i++){
+					for(let j = 0; somePrimes[i] ** somePrimes[j] <= num; j++){
+						if(somePrimes[i] ** somePrimes[j] == num){ 
+							return true; 
+						}
+					}
+				}
+				return false;
+			},
+			//sum of digits is 7
+			function(num){
+				return sumDigits(num) == 7;
+			},
+			//fibonacci
+			function(num){
+				return someFibonacciNumbers.includes(num);
+			},
+			//square
+			function(num){
+				return Math.sqrt(num)%1==0;
+			},
+			//multiple of 37
+			function(num){
+				return num%37==0;
+			},
+			//palindrome & multiple of 23
+			function(num){
+				return (num%23==0 && isPalindrome(num));
+			},
+			//product of digits ends in 1
+			function(num){
+				return [...num.toString()].reduce((acc, digit) => acc * parseInt(digit), 1) % 10 === 1;
+			},
+			//multiple of 88
+			function(num){
+				return num%88==0;
+			},
+			//1 less than a palindrome
+			function(num){
+				return isPalindrome(num +1);
+			}
+		];
+		
+		function drawGrid(){
+			let margin = 2;
+			let canvasWidth = canvas.width;
+			let cellSize = canvasWidth / gridSize;
+			
+			//clear canvas
+			ctx.clearRect(0, 0, canvasWidth, canvasWidth);
+			
+			//draw outlines
+			ctx.lineWidth = 4;
+			ctx.beginPath();
+			ctx.moveTo(0 +  margin, 0 +  margin);
+			ctx.lineTo(0 +  margin, canvasWidth - margin);
+			ctx.lineTo(canvasWidth - margin, canvasWidth - margin);
+			ctx.lineTo(canvasWidth - margin, 0 +  margin);
+			ctx.lineTo(0 +  margin, 0 +  margin);
+			
+			//set font
+			ctx.font = Math.round(cellSize) + "px monospace";
+			
+			for(let x = 0; x < gridSize; x++){
+				for(let y = 0; y < gridSize; y++){
+					//draw boundaries
+					if(verticalBoundaries[y][x]){
+						ctx.moveTo(x*cellSize, y*cellSize);
+						ctx.lineTo(x*cellSize, (y+1)*cellSize);
+					}
+					if(horizontalBoundaries[y][x]){
+						ctx.moveTo(x*cellSize, y*cellSize);
+						ctx.lineTo((x+1)*cellSize, y*cellSize);
+					}
+					//10 represents a shaded cell
+					if(grid[y][x] == 10){
+						ctx.fillRect(x*cellSize, y*cellSize, cellSize, cellSize);
+					//draw numbers
+					}else if(grid[y][x] != undefined){
+						ctx.fillText(""+grid[y][x], (x+0.2)*cellSize, (y+0.85)*cellSize, cellSize);
+					}
+				}
+			}
+			ctx.stroke();
+	
+			//draw inner gridlines with thinner lines
+			ctx.lineWidth = .3;
+			for(let i = cellSize; i <= canvasWidth - cellSize; i += cellSize){
+				ctx.moveTo(0, i);
+				ctx.lineTo(canvasWidth, i);
+				ctx.moveTo(i, 0);
+				ctx.lineTo(i, canvasWidth);
+			}
+			ctx.stroke();
+		}
+	
+		//return true if the row's clue applies to every number in given row
+		function rowIsValid(row, y){
+			let arr = row.map(val => {
+				if(val==10){
+					return "a";
+				}
+				if(val == undefined){
+					return "";
+				}
+				return val;
+			});
+			let str = "";
+			arr.forEach(val => {
+				str += val;
+			});
+			let arr2 = str.split("a");
+			let isValid = true;
+			arr2.forEach(val => {
+				if(!clueChecks[y](Number(val))){
+					isValid = false;
+				}
+			});
+			return isValid;
+		}
+		
+		//returns true if placing currentNum at grid[Y][X] is possible
+		function canBePlaced(){
+			//numbers can not begin with 0
+			if((currentNum == 0) && ((X == 0) || (grid[Y][X - 1] == 10))){
+				return false;
+			}
+			
+			//checks done to shaded cells
+			if(currentNum == 10){
+				//No 1-digit numbers should be created
+				if((X == 1) || (X == 9)){
+					return false;
+				}
+				if((X > 1) && (grid[Y][X - 2] == 10)){
+					return false;
+				}
+				//shading must be "sparse"
+				//check left cell
+				if((X != 0) && (grid[Y][X-1] == 10)){
+					return false;
+				}
+				//check top cell
+				if((Y != 0) && (grid[Y-1][X] == 10)){
+					return false;
+				}
+				//check row validity
+				if(!rowIsValid(grid[Y], Y)){
+					return false;
+				}
+			//checks done to numbers
+			}else {
+				//check left cell
+				if(X != 0 && (grid[Y][X-1] != 10) && ((grid[Y][X-1] == currentNum) == verticalBoundaries[Y][X])){
+					return false;
+				}
+				//check top cell
+				if(Y != 0 && (grid[Y-1][X] != 10) && ((grid[Y-1][X] == currentNum) == horizontalBoundaries[Y][X])){
+					return false;
+				}
+				//check row validity if this is the last number in row
+				if(X == 10 && !rowIsValid(grid[Y].map((el, i)=>{return i == 10 ? currentNum : el}), Y)){
+					return false;
+				}
+			}
+			return true;
+		}
+		
+		//places currentNum in grid and moves to the next cell
+		function moveToNextCell(){
+			grid[Y][X] = currentNum;
+			if(X == 10 && Y == 10){
+				solutionFound = true;
+				return;
+			}
+			currentNum = 0;
+			if(X == 10){
+				X = 0;
+				Y++;
+			}else{
+				X++;
+			}
+		}
+		
+		//writing this made my brain hurt
+		function iterate(){
+			if(currentNum == 10){
+				if(X == 0){						
+					X = 10;
+					Y--;
+				}else{
+					X--;
+				}
+				currentNum = grid[Y][X];
+				grid[Y][X] = undefined;
+				iterate();
+			}else{
+				grid[Y][X] = undefined;
+				currentNum++;
+			}
+		}
+		
+		function getAnswer(){
+			let ans = 0;
+			grid.forEach(row => {
+				let arr = row.map(val => {
+					if(val==10){
+						return "a";
+					}
+					if(val == undefined){
+						return "";
+					}
+					return val;
+				});
+				let str = "";
+				arr.forEach(val => {
+					str += val;
+				});
+				let arr2 = str.split("a");
+				arr2.forEach(val => {
+					ans += Number(val);
+				});
+			});
+			return ans;
+		}
+		
+		function sleep(ms) {
+			return new Promise(resolve => setTimeout(resolve, ms));
+		}
+		
+		let iterations = 0;
+		let stopped = true;
+		let started = false;
+		let startTime;
+		
+		async function toggleSearch(){
+			if(!started){
+				started = true;
+				startTime = Date.now();
+			}
+			stopped = !stopped;
+			//change button text
+			document.querySelector("button").innerHTML = stopped ? "Continue search🔎" : "Searching...";
+			//insert hecker doggo
+			document.querySelector("img").src = "https://media.tenor.com/Bpbu2-YNL6cAAAAM/hacker-pupper-dog.gif";
+			while(!stopped && !solutionFound){
+				//this is the actual search logic
+				if(canBePlaced()){
+					await moveToNextCell();
+				}else{
+					await iterate();
+				}
+				
+				//display updated stats and grid every once in a while		
+				iterations++;
+				if(iterations%907==0 || solutionFound){
+					await drawGrid();
+					//wait a bit to get nice 60ish fps
+					await sleep(16);
+					document.querySelector("#iter").innerHTML = "Iterations: <strong>" + iterations + "</strong>";
+					document.querySelector("#time").innerHTML = "Time elapsed: <strong>" + (Date.now() - startTime) + "ms</strong>";
+				}
+			}
+			if(solutionFound){
+				document.querySelector("button").innerHTML = "Solution found!";
+				document.querySelector("h2").innerHTML = "Answer: " + getAnswer();
+				//insert happy winking doggo
+				document.querySelector("img").src = "https://www.icegif.com/wp-content/uploads/2023/01/icegif-704.gif";
+				
+				//confetti to celebrate
+				for(let i = 0; i < 5; i++){
+					jsConfetti.addConfetti();
+					await sleep(i*50);
+				}
+			}
+		}
+		
+		drawGrid();
+	</script>
+</body>
+</html>
